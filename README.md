@@ -1,5 +1,7 @@
 # Tamarix
 
+*Coded by Alperen Yavuz*
+
 Tamarix, bir web sitesinin temel güvenlik ve yapılandırma problemlerini **güvenli, pasif** kontrollerle tarayıp anlaşılır bir rapor üreten bir web uygulamasıdır.
 
 Kullanıcı bir URL girer (`https://example.com`), Tamarix siteye zarar vermeyen HTTP istekleri gönderir, sonuçları sabit ağırlıklara göre puanlar ve Claude API'yi yalnızca **sonuçları yorumlamak** için kullanarak okunabilir bir rapor oluşturur.

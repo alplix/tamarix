@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Tamarix — Website Security Scanner",
@@ -10,9 +11,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className="antialiased flex min-h-screen flex-col">
         <Header />
-        <main className="mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16 pt-8 sm:px-6">{children}</main>
+        <Footer />
       </body>
     </html>
   );
