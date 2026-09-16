@@ -10,13 +10,13 @@ The user enters a URL (`https://example.com`), Tamarix sends harmless HTTP reque
 
 ## Screenshots
 
-**Home page** — dark theme, a single input and a single button: the user types a URL and clicks "Scan Website".
+**Home page** — dark theme, a single input and a single button:
 
-**Scan result (dashboard)** — the URL and a Security Score gauge at the top, an AI summary below it, 6 check cards (PASS/WARNING/FAIL), findings/recommendations sorted by severity, and a transparent score breakdown.
+![Tamarix home page](docs/screenshots/landing.png)
 
-Live interactive preview: **[Tamarix Scan Dashboard preview](https://claude.ai/artifact/9DA1Jc1hgjAJqMJS7pJMPa)** (sample data, not a real scan).
+**Scan result (dashboard)** — Security Score gauge, AI summary, 6 check cards (PASS/WARNING/FAIL), findings/recommendations sorted by severity, and a transparent score breakdown (shown here with sample data):
 
-> To add real screenshots: run the app with `npm run dev`, perform a scan, save screenshots as `docs/screenshots/landing.png` and `docs/screenshots/dashboard.png`, then replace the descriptions above with `![...](docs/screenshots/...)` in this README.
+![Tamarix scan result dashboard](docs/screenshots/dashboard.png)
 
 ## Features
 
