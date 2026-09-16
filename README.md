@@ -1,12 +1,22 @@
 # Tamarix
 
-*Coded by Alperen Yavuz*
+*Coded by [Alperen Yavuz](https://github.com/alplix)*
 
 Tamarix, bir web sitesinin temel güvenlik ve yapılandırma problemlerini **güvenli, pasif** kontrollerle tarayıp anlaşılır bir rapor üreten bir web uygulamasıdır.
 
 Kullanıcı bir URL girer (`https://example.com`), Tamarix siteye zarar vermeyen HTTP istekleri gönderir, sonuçları sabit ağırlıklara göre puanlar ve Claude API'yi yalnızca **sonuçları yorumlamak** için kullanarak okunabilir bir rapor oluşturur.
 
 > **Bu araç bir penetration testing / saldırı aracı DEĞİLDİR.** Brute force, exploit çalıştırma, SQL injection/XSS denemesi, DDoS, port/directory taraması veya kimlik bilgisi denemesi yapmaz. Yalnızca herkese açık, pasif HTTP kontrolleri gerçekleştirir. Ayrıntılar için [Güvenlik Sınırları](#güvenlik-sınırları) bölümüne bakın.
+
+## Ekran Görüntüleri
+
+**Ana sayfa** — koyu temalı, tek input ve tek buton: kullanıcı URL'yi yazar, "Scan Website"a basar.
+
+**Tarama sonucu (dashboard)** — üstte URL ve Security Score göstergesi, altında AI özeti, 6 kontrol kartı (PASS/WARNING/FAIL), önem derecesine göre sıralanmış bulgular/öneriler ve şeffaf puan dağılımı.
+
+Canlı, interaktif bir önizleme: **[Tamarix Scan Dashboard önizlemesi](https://claude.ai/artifact/9DA1Jc1hgjAJqMJS7pJMPa)** (örnek verilerle, gerçek bir tarama değildir).
+
+> Gerçek ekran görüntülerini eklemek için: `npm run dev` ile uygulamayı çalıştırın, bir tarama yapın, ardından ekran görüntülerini `docs/screenshots/landing.png` ve `docs/screenshots/dashboard.png` olarak kaydedip bu README'de yukarıdaki açıklamaların yerine `![...](docs/screenshots/...)` ile ekleyin.
 
 ## Özellikler
 
