@@ -1,5 +1,5 @@
 import { safeFetch } from "../safe-fetch";
-import { normalizeUrl, validateTargetUrl } from "../url-validation";
+import { normalizeUrl, validateTargetUrl, UnsafeUrlError } from "../url-validation";
 import { buildFindings } from "../findings";
 import { computeScore } from "../scoring";
 import type { ScanChecks, ScanResult } from "../types";
@@ -17,7 +17,7 @@ export async function runScan(rawUrl: string): Promise<ScanResult> {
   return Promise.race([
     runScanUnbounded(rawUrl),
     new Promise<ScanResult>((_, reject) =>
-      setTimeout(() => reject(new Error("Tarama zaman aşımına uğradı (site çok yavaş yanıt veriyor).")), SCAN_BUDGET_MS)
+      setTimeout(() => reject(new UnsafeUrlError("request_timeout")), SCAN_BUDGET_MS)
     ),
   ]);
 }

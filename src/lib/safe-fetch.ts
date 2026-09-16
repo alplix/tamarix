@@ -46,11 +46,11 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
           Accept: "*/*",
         },
       });
-    } catch (err) {
+    } catch {
       if (controller.signal.aborted) {
-        throw new Error("İstek zaman aşımına uğradı.");
+        throw new UnsafeUrlError("request_timeout");
       }
-      throw new Error(`Bağlantı kurulamadı: ${err instanceof Error ? err.message : "bilinmeyen hata"}`);
+      throw new UnsafeUrlError("connection_failed");
     } finally {
       clearTimeout(timer);
     }
@@ -72,7 +72,7 @@ export async function safeFetch(rawUrl: string, options: SafeFetchOptions = {}):
     return { response, finalUrl: url.toString(), bodyText: text, truncated };
   }
 
-  throw new Error("Çok fazla yönlendirme (redirect loop).");
+  throw new UnsafeUrlError("too_many_redirects");
 }
 
 async function readLimitedBody(response: Response): Promise<{ text: string; truncated: boolean }> {

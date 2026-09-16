@@ -1,39 +1,39 @@
-import type { InfoDisclosureCheckResult } from "../types";
+import type { InfoDisclosureCheckResult, InfoIssue } from "../types";
 
 const VERSION_PATTERN = /\/[\d]+(\.[\d]+)+/;
 
 export function checkInformationDisclosure(headers: Headers, html: string): InfoDisclosureCheckResult {
-  const issues: string[] = [];
+  const issues: InfoIssue[] = [];
 
   const serverHeader = headers.get("server");
   const poweredByHeader = headers.get("x-powered-by");
 
   if (serverHeader && VERSION_PATTERN.test(serverHeader)) {
-    issues.push(`Server header'ı sürüm bilgisi sızdırıyor: "${serverHeader}".`);
+    issues.push({ code: "serverVersion", value: serverHeader });
   } else if (serverHeader) {
-    issues.push(`Server header'ı mevcut: "${serverHeader}" (yazılım türünü açığa çıkarıyor).`);
+    issues.push({ code: "serverGeneric", value: serverHeader });
   }
 
   if (poweredByHeader) {
-    issues.push(`X-Powered-By header'ı mevcut: "${poweredByHeader}".`);
+    issues.push({ code: "poweredBy", value: poweredByHeader });
   }
 
   let generatorMeta: string | null = null;
   const metaMatch = html.match(/<meta[^>]+name=["']generator["'][^>]*content=["']([^"']+)["'][^>]*>/i);
   if (metaMatch) {
     generatorMeta = metaMatch[1];
-    issues.push(`HTML generator meta etiketi mevcut: "${generatorMeta}".`);
+    issues.push({ code: "generator", value: generatorMeta });
   }
 
-  const debugPatterns: Array<[RegExp, string]> = [
-    [/Warning:\s*(include|require)/i, "PHP dahil etme uyarısı HTML içinde görünüyor."],
-    [/Fatal error:/i, "PHP fatal error mesajı HTML içinde görünüyor."],
-    [/Traceback \(most recent call last\)/i, "Python traceback HTML içinde görünüyor."],
-    [/System\.Exception|at System\./i, ".NET istisna izleri HTML içinde görünüyor."],
-    [/DEBUG\s*=\s*True/i, "Debug modu etkin görünüyor (DEBUG = True)."],
+  const debugPatterns: Array<[RegExp, InfoIssue["code"]]> = [
+    [/Warning:\s*(include|require)/i, "phpWarning"],
+    [/Fatal error:/i, "phpFatal"],
+    [/Traceback \(most recent call last\)/i, "pythonTraceback"],
+    [/System\.Exception|at System\./i, "dotnetException"],
+    [/DEBUG\s*=\s*True/i, "debugMode"],
   ];
-  for (const [pattern, message] of debugPatterns) {
-    if (pattern.test(html)) issues.push(message);
+  for (const [pattern, code] of debugPatterns) {
+    if (pattern.test(html)) issues.push({ code });
   }
 
   return {

@@ -2,60 +2,61 @@
 
 *Coded by [Alperen Yavuz](https://github.com/alplix)*
 
-Tamarix, bir web sitesinin temel güvenlik ve yapılandırma problemlerini **güvenli, pasif** kontrollerle tarayıp anlaşılır bir rapor üreten bir web uygulamasıdır.
+Tamarix is a web application that scans a website for common security and configuration issues using **safe, passive** checks only, and turns the results into a clear, readable report.
 
-Kullanıcı bir URL girer (`https://example.com`), Tamarix siteye zarar vermeyen HTTP istekleri gönderir, sonuçları sabit ağırlıklara göre puanlar ve Claude API'yi yalnızca **sonuçları yorumlamak** için kullanarak okunabilir bir rapor oluşturur.
+The user enters a URL (`https://example.com`), Tamarix sends harmless HTTP requests to the site, scores the results against fixed weights, and uses the Claude API **only to explain the results in plain language** — never to attack the target.
 
-> **Bu araç bir penetration testing / saldırı aracı DEĞİLDİR.** Brute force, exploit çalıştırma, SQL injection/XSS denemesi, DDoS, port/directory taraması veya kimlik bilgisi denemesi yapmaz. Yalnızca herkese açık, pasif HTTP kontrolleri gerçekleştirir. Ayrıntılar için [Güvenlik Sınırları](#güvenlik-sınırları) bölümüne bakın.
+> **This tool is NOT a penetration testing / attack tool.** It never performs brute force, exploit execution, SQL injection/XSS attempts, DDoS, port/directory scanning, or credential guessing. It only performs safe, passive, publicly-available checks. See [Security Boundaries](#security-boundaries) for details.
 
-## Ekran Görüntüleri
+## Screenshots
 
-**Ana sayfa** — koyu temalı, tek input ve tek buton: kullanıcı URL'yi yazar, "Scan Website"a basar.
+**Home page** — dark theme, a single input and a single button: the user types a URL and clicks "Scan Website".
 
-**Tarama sonucu (dashboard)** — üstte URL ve Security Score göstergesi, altında AI özeti, 6 kontrol kartı (PASS/WARNING/FAIL), önem derecesine göre sıralanmış bulgular/öneriler ve şeffaf puan dağılımı.
+**Scan result (dashboard)** — the URL and a Security Score gauge at the top, an AI summary below it, 6 check cards (PASS/WARNING/FAIL), findings/recommendations sorted by severity, and a transparent score breakdown.
 
-Canlı, interaktif bir önizleme: **[Tamarix Scan Dashboard önizlemesi](https://claude.ai/artifact/9DA1Jc1hgjAJqMJS7pJMPa)** (örnek verilerle, gerçek bir tarama değildir).
+Live interactive preview: **[Tamarix Scan Dashboard preview](https://claude.ai/artifact/9DA1Jc1hgjAJqMJS7pJMPa)** (sample data, not a real scan).
 
-> Gerçek ekran görüntülerini eklemek için: `npm run dev` ile uygulamayı çalıştırın, bir tarama yapın, ardından ekran görüntülerini `docs/screenshots/landing.png` ve `docs/screenshots/dashboard.png` olarak kaydedip bu README'de yukarıdaki açıklamaların yerine `![...](docs/screenshots/...)` ile ekleyin.
+> To add real screenshots: run the app with `npm run dev`, perform a scan, save screenshots as `docs/screenshots/landing.png` and `docs/screenshots/dashboard.png`, then replace the descriptions above with `![...](docs/screenshots/...)` in this README.
 
-## Özellikler
+## Features
 
-- Tek bir URL girerek anında tarama başlatma
-- 0-100 arası, **sabit ve kod içinde tanımlı ağırlıklarla** hesaplanan bir Security Score
-- PASS / WARNING / FAIL durumlarıyla kontrol kartları
-- Önem derecesine göre (HIGH/MEDIUM/LOW/PASS) sıralanmış bulgular ve öneriler
-- Claude tarafından üretilen, teknik sonuçları yorumlayan kısa bir AI özeti
-- Aynı URL için sonuçların veritabanında önbelleklenmesi (varsayılan: 1 saat) — gereksiz AI çağrısı ve gereksiz tarama yapılmaz
-- Geçmiş taramaların listelenmesi
+- Start a scan instantly from a single URL
+- A 0-100 Security Score computed from **fixed, code-defined weights**
+- Check cards with PASS / WARNING / FAIL status
+- Findings and recommendations sorted by severity (HIGH/MEDIUM/LOW/PASS)
+- A short AI-generated summary that explains the technical results in plain language
+- Results are cached in the database per URL (default: 1 hour) — no redundant scans or AI calls
+- A list of past scans
+- **Multi-language UI** — the interface, findings, and AI summary can be viewed in over 20 languages (see [Supported Languages](#supported-languages))
 
-## Güvenlik Kontrolleri
+## Security Checks
 
-| Kategori | Ağırlık | Neler kontrol edilir |
+| Category | Weight | What's checked |
 |---|---|---|
-| HTTPS | 25 | HTTPS erişilebilirliği, TLS bağlantısı, HTTP→HTTPS yönlendirmesi |
+| HTTPS | 25 | HTTPS reachability, TLS handshake, HTTP→HTTPS redirection |
 | Security Headers | 30 | `Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` |
-| Cookies | 15 | `Secure`, `HttpOnly`, `SameSite` bayrakları |
-| Information Disclosure | 10 | `Server` / `X-Powered-By` header'ları, HTML `generator` meta etiketi, açık hata/debug izleri |
-| Exposure Checks | 10 | `robots.txt`, `sitemap.xml`, `.well-known/security.txt` varlığı (yalnızca bu sabit dosyalar; brute force yok) |
-| HTTP Methods | 10 | `OPTIONS` isteğiyle `Allow` header'ının pasif okunması |
+| Cookies | 15 | `Secure`, `HttpOnly`, `SameSite` flags |
+| Information Disclosure | 10 | `Server` / `X-Powered-By` headers, HTML `generator` meta tag, visible error/debug traces |
+| Exposure Checks | 10 | presence of `robots.txt`, `sitemap.xml`, `.well-known/security.txt` (only these fixed, well-known files — no brute forcing) |
+| HTTP Methods | 10 | passively reading the `Allow` header from a single `OPTIONS` request |
 
-Her kategori PASS ise tam ağırlığını, WARNING ise yarısını, FAIL ise sıfır puan kazanır. Ağırlıklar [`src/lib/scoring.ts`](src/lib/scoring.ts) içinde açıkça tanımlıdır — skor rastgele veya yapay olarak üretilmez.
+Each category earns its full weight on PASS, half on WARNING, and zero on FAIL. Weights are explicitly defined in [`src/lib/scoring.ts`](src/lib/scoring.ts) — the score is never random or AI-generated.
 
-## Kullanılan Teknolojiler
+## Tech Stack
 
 - **Next.js 16** (App Router) + **TypeScript**
 - **Tailwind CSS v4**
 - **PostgreSQL** + **Prisma**
-- **Claude API** (`@anthropic-ai/sdk`) — yalnızca rapor özetleme için
-- **Vitest** — birim testleri
+- **Claude API** (`@anthropic-ai/sdk`) — used only to summarize already-collected results
+- **Vitest** — unit tests
 
-## Kurulum
+## Setup
 
-### Gereksinimler
+### Requirements
 
 - Node.js 20+
-- Bir PostgreSQL veritabanı (yerel veya barındırılan)
-- Bir Claude API anahtarı
+- A PostgreSQL database (local or hosted)
+- A Claude API key
 
 ```bash
 npm install
@@ -63,37 +64,37 @@ npm install
 
 ### Environment Variables
 
-`.env.example` dosyasını `.env` olarak kopyalayıp doldurun:
+Copy `.env.example` to `.env` and fill it in:
 
 ```bash
 cp .env.example .env
 ```
 
-| Değişken | Açıklama |
+| Variable | Description |
 |---|---|
-| `DATABASE_URL` | PostgreSQL bağlantı adresi (`postgresql://user:pass@host:5432/db?schema=public`) |
-| `ANTHROPIC_API_KEY` | Claude API anahtarı ([console.anthropic.com](https://console.anthropic.com/)) |
-| `ANTHROPIC_MODEL` | (opsiyonel) kullanılacak model, varsayılan `claude-sonnet-5` |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql://user:pass@host:5432/db?schema=public`) |
+| `ANTHROPIC_API_KEY` | Claude API key ([console.anthropic.com](https://console.anthropic.com/)) |
+| `ANTHROPIC_MODEL` | (optional) model to use, defaults to `claude-sonnet-5` |
 
-### PostgreSQL Kurulumu
+### PostgreSQL Setup
 
-Yerelde hızlıca bir PostgreSQL örneği çalıştırmak için Docker kullanabilirsiniz:
+To quickly run a local PostgreSQL instance with Docker:
 
 ```bash
-docker run --name tamarix-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=siteguard -p 5432:5432 -d postgres:16
+docker run --name tamarix-db -e POSTGRES_PASSWORD=password -e POSTGRES_DB=tamarix -p 5432:5432 -d postgres:16
 ```
 
-Ardından şemayı veritabanına uygulayın:
+Then apply the schema to the database:
 
 ```bash
 npm run db:migrate
 ```
 
-### Claude API Kurulumu
+### Claude API Setup
 
-1. [console.anthropic.com](https://console.anthropic.com/) adresinden bir API anahtarı oluşturun.
-2. `.env` dosyasındaki `ANTHROPIC_API_KEY` değerine yapıştırın.
-3. API anahtarı olmadan da uygulama çalışır — bu durumda tarama sonuçları üretilir ancak AI özeti yerine "AI özeti oluşturulamadı" mesajı gösterilir; uygulama çökmez.
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com/).
+2. Paste it into `ANTHROPIC_API_KEY` in your `.env` file.
+3. The app still works without an API key — scans still run and produce results, but the AI summary is replaced with an "AI summary could not be generated" message instead of the app crashing.
 
 ## Development
 
@@ -101,7 +102,7 @@ npm run db:migrate
 npm run dev
 ```
 
-Uygulama `http://localhost:3000` adresinde açılır.
+The app opens at `http://localhost:3000`.
 
 ## Production Build
 
@@ -113,50 +114,61 @@ npm run start
 ## Test, Lint, Typecheck
 
 ```bash
-npm run test        # Vitest birim testleri
+npm run test        # Vitest unit tests
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
 ```
 
-## Mimari
+## Architecture
 
 ```
 src/
   app/
-    page.tsx                → Ana sayfa (URL formu + geçmiş taramalar)
-    scan/[id]/page.tsx       → Tarama sonucu dashboard'u
-    api/scan/route.ts        → POST: yeni tarama başlat, GET: geçmiş listesi
-    api/scan/[id]/route.ts   → Tek bir taramayı getir
-  components/                → UI bileşenleri (ScoreGauge, CheckCard, FindingCard, ...)
+    page.tsx                → Home page (URL form + recent scans)
+    scan/[id]/page.tsx       → Scan result dashboard
+    api/scan/route.ts        → POST: start a new scan, GET: list history
+    api/scan/[id]/route.ts   → Fetch a single scan
+  components/                → UI components (ScoreGauge, CheckCard, FindingCard, LanguageSwitcher, ...)
   lib/
-    url-validation.ts        → SSRF koruması (protokol, DNS, IP aralığı doğrulama)
-    safe-fetch.ts             → Zaman aşımı + boyut sınırı + redirect doğrulamalı fetch sarmalayıcı
-    scanner/                  → Her kontrol kategorisi için ayrı, pasif modül
-    scoring.ts                 → Sabit ağırlıklı, deterministik skor hesaplama
-    findings.ts                 → Ham kontrol sonuçlarından kullanıcıya gösterilecek bulguları üretir
-    ai-summary.ts                → Claude API çağrısı + JSON şema doğrulama
-    scan-service.ts               → Önbellekleme, tarama orkestrasyonu, veritabanı kalıcılığı
-prisma/schema.prisma            → Scan ve Finding modelleri
+    url-validation.ts        → SSRF protection (protocol, DNS, IP-range validation)
+    safe-fetch.ts             → Timeout + size-limited + redirect-revalidating fetch wrapper
+    scanner/                  → One passive module per check category, emitting language-neutral codes
+    scoring.ts                 → Fixed-weight, deterministic score calculation
+    findings.ts                 → Turns raw check results into language-neutral findings (message key + params)
+    ai-summary.ts                → Claude API call + JSON schema validation, locale-aware
+    scan-service.ts               → Caching, scan orchestration, database persistence
+    i18n/                          → Locale list, message dictionaries, translation helper, locale detection
+prisma/schema.prisma            → Scan and Finding models
 ```
 
-Akış: `URL girildi → SSRF doğrulaması → önbellek kontrolü → pasif HTTP kontrolleri → skor hesaplama → bulgu üretimi → (varsa) Claude ile özetleme → veritabanına kaydetme → dashboard`.
+Flow: `URL submitted → SSRF validation → cache check → passive HTTP checks → score calculation → language-neutral finding generation → (on first view per language) AI summary via Claude → persisted to the database → dashboard, rendered in the viewer's language`.
 
-## Güvenlik Sınırları
+Scans themselves are **language-independent** (checks, score and findings are stored as codes/keys, not prose), so the same scan is reused for every viewer regardless of language — only the AI summary is generated (and cached) once per URL **and** language, keeping AI usage to a minimum.
 
-Tamarix **kesinlikle** şunları yapmaz:
+## Supported Languages
 
-- Brute force, şifre/kimlik bilgisi denemesi
-- Exploit çalıştırma, SQL injection / XSS payload gönderme, command injection
-- DDoS veya yoğun/agresif tarama
-- Port taraması veya directory brute force
-- CAPTCHA veya rate-limit bypass
-- Kullanıcının belirttiği hedef üzerinden iç ağlara veya `localhost`'a erişim (SSRF koruması: [`src/lib/url-validation.ts`](src/lib/url-validation.ts) her isteği ve her redirect adımını protokol, hostname ve çözümlenen IP adresi bazında doğrular; loopback, private, link-local, CGNAT ve bulut metadata adresleri reddedilir)
+The UI, findings/recommendations, and the AI summary are all available in:
 
-Bu araç bir **penetration testing aracı değildir**. Yalnızca herkese açık olarak zaten erişilebilen bilgileri (HTTP header'ları, cookie bayrakları, sabit dosyalar) pasif şekilde okur ve yorumlar. Bulunan zafiyetleri doğrulamak veya istismar etmek için tasarlanmamıştır.
+English, Turkish, German, French, Spanish, Italian, Portuguese, Dutch, Polish, Romanian, Greek, Czech, Slovak, Hungarian, Swedish, Danish, Finnish, Bulgarian, Russian, Ukrainian, Chinese (Simplified), and Vietnamese.
 
-## Gelecek Özellikler
+Switch languages from the dropdown in the header — the choice is remembered for future visits. Adding another language only requires adding one dictionary file under [`src/lib/i18n/messages/`](src/lib/i18n/messages/); see that folder's `en.ts` for the full list of keys.
 
-- Kullanıcı hesabı sistemi ile taramaların kişiye özel geçmişi
-- Zamanlanmış/periyodik tekrar taramalar ve regresyon takibi
-- PDF/CSV rapor dışa aktarımı
-- Ek pasif kontroller (DNS CAA kaydı, e-posta güvenliği — SPF/DMARC)
+## Security Boundaries
+
+Tamarix **never**:
+
+- Performs brute force or credential guessing
+- Runs exploits, sends SQL injection / XSS payloads, or attempts command injection
+- Performs DDoS or aggressive/high-volume scanning
+- Performs port scanning or directory brute forcing
+- Bypasses CAPTCHAs or rate limits
+- Reaches internal networks or `localhost` through a user-supplied target (SSRF protection: [`src/lib/url-validation.ts`](src/lib/url-validation.ts) validates every request and every redirect hop by protocol, hostname, and resolved IP address; loopback, private, link-local, CGNAT, and cloud-metadata addresses are all rejected)
+
+This tool is **not a penetration testing tool**. It only passively reads and explains information that is already publicly accessible (HTTP headers, cookie flags, well-known files). It is not designed to confirm or exploit any vulnerability it finds.
+
+## Roadmap
+
+- User accounts with a personal scan history
+- Scheduled/recurring re-scans with regression tracking
+- PDF/CSV report export
+- Additional passive checks (DNS CAA record, email security — SPF/DMARC)

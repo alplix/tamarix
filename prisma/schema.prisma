@@ -32,25 +32,31 @@ model Scan {
   infoDisclosureStatus CheckStatus
   exposureStatus       CheckStatus
   httpMethodsStatus    CheckStatus
+  /// Full ScanResult (language-neutral: checks + findings as message keys, not prose).
   rawResult            Json
-  aiSummary            Json?
-  aiSummaryError       String?
+  /// Map of locale -> { summary: AiSummary | null, error: string | null }, populated lazily per viewed language.
+  aiSummaries          Json?
 
   findings Finding[]
 
   @@index([normalizedUrl, createdAt])
 }
 
+/// A finding is stored as a translation key + params, never as pre-rendered prose,
+/// so the same row renders correctly in every supported language.
 model Finding {
-  id             String   @id @default(cuid())
-  scanId         String
-  scan           Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  category       String
-  severity       Severity
-  title          String
-  description    String
-  recommendation String
-  createdAt      DateTime @default(now())
+  id                    String   @id @default(cuid())
+  scanId                String
+  scan                  Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  category              String
+  severity              Severity
+  titleKey              String
+  titleParams           Json?
+  descriptionKey        String
+  descriptionParams     Json?
+  recommendationKey     String
+  recommendationParams  Json?
+  createdAt             DateTime @default(now())
 
   @@index([scanId])
 }

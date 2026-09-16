@@ -1,6 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Header() {
+  const { t } = useI18n();
+
   return (
     <header className="border-b border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
@@ -18,7 +24,10 @@ export function Header() {
           </span>
           <span className="text-lg font-semibold tracking-tight">Tamarix</span>
         </Link>
-        <span className="hidden text-sm text-[var(--muted)] sm:block">Website Security Scanner</span>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-[var(--muted)] sm:block">{t("header.subtitle")}</span>
+          <LanguageSwitcher />
+        </div>
       </div>
     </header>
   );

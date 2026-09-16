@@ -2,92 +2,76 @@ import type { CheckStatus, HeaderCheck, HeadersCheckResult } from "../types";
 
 function evaluateCsp(value: string | null): HeaderCheck {
   if (!value) {
-    return { header: "Content-Security-Policy", status: "FAIL", value: null, reason: "Header bulunamadı." };
+    return { headerKey: "csp", header: "Content-Security-Policy", status: "FAIL", value: null, reasonCode: "csp.missing" };
   }
   const lower = value.toLowerCase();
   if (lower.includes("unsafe-inline") || lower.includes("unsafe-eval") || /default-src[^;]*\*/.test(lower)) {
-    return {
-      header: "Content-Security-Policy",
-      status: "WARNING",
-      value,
-      reason: "Politika mevcut ancak 'unsafe-inline', 'unsafe-eval' veya joker (*) kaynak izinleri zayıflatıyor.",
-    };
+    return { headerKey: "csp", header: "Content-Security-Policy", status: "WARNING", value, reasonCode: "csp.weak" };
   }
-  return { header: "Content-Security-Policy", status: "PASS", value, reason: "Header mevcut ve makul şekilde yapılandırılmış." };
+  return { headerKey: "csp", header: "Content-Security-Policy", status: "PASS", value, reasonCode: "csp.pass" };
 }
 
 function evaluateHsts(value: string | null, isHttps: boolean): HeaderCheck {
+  const header = "Strict-Transport-Security";
   if (!isHttps) {
-    return {
-      header: "Strict-Transport-Security",
-      status: "WARNING",
-      value,
-      reason: "Site HTTPS kullanmıyor, HSTS uygulanamaz.",
-    };
+    return { headerKey: "hsts", header, status: "WARNING", value, reasonCode: "hsts.noHttps" };
   }
   if (!value) {
-    return { header: "Strict-Transport-Security", status: "FAIL", value: null, reason: "Header bulunamadı." };
+    return { headerKey: "hsts", header, status: "FAIL", value: null, reasonCode: "hsts.missing" };
   }
   const maxAgeMatch = value.match(/max-age=(\d+)/i);
   const maxAge = maxAgeMatch ? Number.parseInt(maxAgeMatch[1], 10) : 0;
   if (maxAge < 15552000) {
     // < 180 days
-    return {
-      header: "Strict-Transport-Security",
-      status: "WARNING",
-      value,
-      reason: "max-age değeri çok düşük (önerilen: en az 180 gün / 15552000 saniye).",
-    };
+    return { headerKey: "hsts", header, status: "WARNING", value, reasonCode: "hsts.weak" };
   }
-  return { header: "Strict-Transport-Security", status: "PASS", value, reason: "Header mevcut ve yeterli max-age değerine sahip." };
+  return { headerKey: "hsts", header, status: "PASS", value, reasonCode: "hsts.pass" };
 }
 
 function evaluateXContentTypeOptions(value: string | null): HeaderCheck {
+  const header = "X-Content-Type-Options";
   if (!value) {
-    return { header: "X-Content-Type-Options", status: "FAIL", value: null, reason: "Header bulunamadı." };
+    return { headerKey: "xcto", header, status: "FAIL", value: null, reasonCode: "xcto.missing" };
   }
   if (value.toLowerCase().trim() !== "nosniff") {
-    return { header: "X-Content-Type-Options", status: "WARNING", value, reason: "Değer 'nosniff' olmalı." };
+    return { headerKey: "xcto", header, status: "WARNING", value, reasonCode: "xcto.weak" };
   }
-  return { header: "X-Content-Type-Options", status: "PASS", value, reason: "Header mevcut ve doğru yapılandırılmış." };
+  return { headerKey: "xcto", header, status: "PASS", value, reasonCode: "xcto.pass" };
 }
 
 function evaluateXFrameOptions(value: string | null, csp: string | null): HeaderCheck {
+  const header = "X-Frame-Options";
   const cspHasFrameAncestors = csp?.toLowerCase().includes("frame-ancestors") ?? false;
   if (!value) {
     if (cspHasFrameAncestors) {
-      return {
-        header: "X-Frame-Options",
-        status: "PASS",
-        value: null,
-        reason: "Header yok ancak CSP 'frame-ancestors' yönergesi clickjacking korumasını sağlıyor.",
-      };
+      return { headerKey: "xfo", header, status: "PASS", value: null, reasonCode: "xfo.passViaCsp" };
     }
-    return { header: "X-Frame-Options", status: "FAIL", value: null, reason: "Header bulunamadı ve CSP frame-ancestors da yok." };
+    return { headerKey: "xfo", header, status: "FAIL", value: null, reasonCode: "xfo.missingNoCsp" };
   }
   const normalized = value.toLowerCase().trim();
   if (normalized !== "deny" && normalized !== "sameorigin") {
-    return { header: "X-Frame-Options", status: "WARNING", value, reason: "Değer DENY veya SAMEORIGIN olmalı." };
+    return { headerKey: "xfo", header, status: "WARNING", value, reasonCode: "xfo.weak" };
   }
-  return { header: "X-Frame-Options", status: "PASS", value, reason: "Header mevcut ve doğru yapılandırılmış." };
+  return { headerKey: "xfo", header, status: "PASS", value, reasonCode: "xfo.pass" };
 }
 
 function evaluateReferrerPolicy(value: string | null): HeaderCheck {
+  const header = "Referrer-Policy";
   if (!value) {
-    return { header: "Referrer-Policy", status: "WARNING", value: null, reason: "Header bulunamadı." };
+    return { headerKey: "referrer", header, status: "WARNING", value: null, reasonCode: "referrer.missing" };
   }
-  const weakValues = ["unsafe-url"];
-  if (weakValues.includes(value.toLowerCase().trim())) {
-    return { header: "Referrer-Policy", status: "WARNING", value, reason: "'unsafe-url' referrer bilgisini fazla paylaşır." };
+  if (value.toLowerCase().trim() === "unsafe-url") {
+    return { headerKey: "referrer", header, status: "WARNING", value, reasonCode: "referrer.weak" };
   }
-  return { header: "Referrer-Policy", status: "PASS", value, reason: "Header mevcut ve makul şekilde yapılandırılmış." };
+  return { headerKey: "referrer", header, status: "PASS", value, reasonCode: "referrer.pass" };
 }
 
 function evaluatePermissionsPolicy(value: string | null): HeaderCheck {
+  const header = "Permissions-Policy";
   if (!value) {
-    return { header: "Permissions-Policy", status: "WARNING", value: null, reason: "Header bulunamadı." };
+    return { headerKey: "permissions", header, status: "WARNING", value: null, reasonCode: "permissions.missing" };
   }
-  return { header: "Permissions-Policy", status: "PASS", value, reason: "Header mevcut." };
+  return { headerKey: "permissions", header, status: "PASS", value, reasonCode: "permissions.pass" };
 }
 
 export function checkSecurityHeaders(headers: Headers, isHttps: boolean): HeadersCheckResult {

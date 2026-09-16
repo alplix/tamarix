@@ -1,10 +1,13 @@
+import type { Locale } from "@/lib/i18n/locales";
+import { t } from "@/lib/i18n/translate";
+
 function scoreColor(score: number): string {
   if (score >= 80) return "var(--pass)";
   if (score >= 50) return "var(--warning)";
   return "var(--fail)";
 }
 
-export function ScoreGauge({ score }: { score: number }) {
+export function ScoreGauge({ score, locale }: { score: number; locale: Locale }) {
   const radius = 54;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (Math.min(Math.max(score, 0), 100) / 100) * circumference;
@@ -35,7 +38,9 @@ export function ScoreGauge({ score }: { score: number }) {
           <span className="text-xs text-[var(--muted)]">/ 100</span>
         </div>
       </div>
-      <span className="text-sm font-medium uppercase tracking-wide text-[var(--muted)]">Security Score</span>
+      <span className="text-sm font-medium uppercase tracking-wide text-[var(--muted)]">
+        {t(locale, "scan.securityScoreLabel")}
+      </span>
     </div>
   );
 }

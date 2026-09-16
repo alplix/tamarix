@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n/context";
 
 export function ScanForm() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { t } = useI18n();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,14 +27,14 @@ export function ScanForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Tarama başarısız oldu.");
+        setError(data.error ?? t("error.unexpected"));
         setLoading(false);
         return;
       }
 
       router.push(`/scan/${data.scan.id}`);
     } catch {
-      setError("Sunucuya bağlanılamadı. Lütfen tekrar deneyin.");
+      setError(t("error.network"));
       setLoading(false);
     }
   }
@@ -44,7 +46,7 @@ export function ScanForm() {
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com"
+          placeholder={t("form.placeholder")}
           className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] outline-none focus:border-[var(--accent)]"
           disabled={loading}
         />
@@ -53,7 +55,7 @@ export function ScanForm() {
           disabled={loading}
           className="rounded-lg bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-[#04121a] transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Scanning…" : "Scan Website"}
+          {loading ? t("form.button.scanning") : t("form.button.scan")}
         </button>
       </form>
       {error && <p className="text-sm text-[var(--fail)]">{error}</p>}

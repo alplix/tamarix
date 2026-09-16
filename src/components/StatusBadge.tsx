@@ -1,10 +1,6 @@
 import type { CheckStatus, Severity } from "@/lib/types";
-
-const STATUS_LABEL: Record<CheckStatus, string> = {
-  PASS: "PASS",
-  WARNING: "WARNING",
-  FAIL: "FAIL",
-};
+import type { Locale } from "@/lib/i18n/locales";
+import { t, type MessageKey } from "@/lib/i18n/translate";
 
 const STATUS_CLASS: Record<CheckStatus, string> = {
   PASS: "badge-pass",
@@ -18,21 +14,14 @@ const STATUS_ICON: Record<CheckStatus, string> = {
   FAIL: "✕",
 };
 
-export function StatusBadge({ status }: { status: CheckStatus }) {
+export function StatusBadge({ status, locale }: { status: CheckStatus; locale: Locale }) {
   return (
     <span className={`badge ${STATUS_CLASS[status]}`}>
       <span>{STATUS_ICON[status]}</span>
-      {STATUS_LABEL[status]}
+      {t(locale, `status.${status}` as MessageKey)}
     </span>
   );
 }
-
-const SEVERITY_LABEL: Record<Severity, string> = {
-  HIGH: "HIGH",
-  MEDIUM: "MEDIUM",
-  LOW: "LOW",
-  PASS: "PASS",
-};
 
 const SEVERITY_CLASS: Record<Severity, string> = {
   HIGH: "badge-high",
@@ -48,11 +37,11 @@ const SEVERITY_ICON: Record<Severity, string> = {
   PASS: "\u{1F7E2}",
 };
 
-export function SeverityBadge({ severity }: { severity: Severity }) {
+export function SeverityBadge({ severity, locale }: { severity: Severity; locale: Locale }) {
   return (
     <span className={`badge ${SEVERITY_CLASS[severity]}`}>
       <span>{SEVERITY_ICON[severity]}</span>
-      {SEVERITY_LABEL[severity]}
+      {t(locale, `severity.${severity}` as MessageKey)}
     </span>
   );
 }

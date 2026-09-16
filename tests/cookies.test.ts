@@ -20,7 +20,7 @@ describe("parseCookies", () => {
 
   it("flags SameSite=None without Secure", () => {
     const [cookie] = parseCookies(["session=abc123; SameSite=None"]);
-    expect(cookie.issues.some((i) => i.includes("SameSite=None"))).toBe(true);
+    expect(cookie.issues).toContain("sameSiteNoneNoSecure");
   });
 
   it("parses multiple Set-Cookie entries independently", () => {

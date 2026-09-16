@@ -1,4 +1,4 @@
-import type { CookieCheck, CookiesCheckResult } from "../types";
+import type { CookieCheck, CookieIssueCode, CookiesCheckResult } from "../types";
 
 /**
  * Parses individual Set-Cookie header values (each string is already one full
@@ -9,20 +9,20 @@ export function parseCookies(setCookieHeaders: string[]): CookieCheck[] {
   return setCookieHeaders.map((cookieStr) => {
     const attrs = cookieStr.split(";").map((s) => s.trim());
     const [nameValue, ...rest] = attrs;
-    const name = nameValue.split("=")[0]?.trim() || "(bilinmeyen)";
+    const name = nameValue.split("=")[0]?.trim() || "(unknown)";
 
     const secure = rest.some((a) => a.toLowerCase() === "secure");
     const httpOnly = rest.some((a) => a.toLowerCase() === "httponly");
     const sameSiteAttr = rest.find((a) => a.toLowerCase().startsWith("samesite"));
     const sameSite = sameSiteAttr ? sameSiteAttr.split("=")[1]?.trim() ?? null : null;
 
-    const issues: string[] = [];
-    if (!secure) issues.push("Secure bayrağı eksik.");
-    if (!httpOnly) issues.push("HttpOnly bayrağı eksik.");
+    const issues: CookieIssueCode[] = [];
+    if (!secure) issues.push("missingSecure");
+    if (!httpOnly) issues.push("missingHttpOnly");
     if (!sameSite) {
-      issues.push("SameSite bayrağı eksik.");
+      issues.push("missingSameSite");
     } else if (sameSite.toLowerCase() === "none" && !secure) {
-      issues.push("SameSite=None kullanılırken Secure bayrağı zorunludur.");
+      issues.push("sameSiteNoneNoSecure");
     }
 
     return { name, secure, httpOnly, sameSite, issues };
@@ -36,10 +36,10 @@ export function checkCookies(setCookieHeaders: string[]): CookiesCheckResult {
     return { status: "PASS", cookies, cookieCount: 0 };
   }
 
-  const hasIssues = cookies.some((c) => c.issues.length > 0);
   const hasCriticalIssue = cookies.some((c) => !c.secure || !c.httpOnly);
+  const hasAnyIssue = cookies.some((c) => c.issues.length > 0);
 
-  const status = hasCriticalIssue ? "WARNING" : hasIssues ? "WARNING" : "PASS";
+  const status = hasCriticalIssue || hasAnyIssue ? "WARNING" : "PASS";
 
   return { status, cookies, cookieCount: cookies.length };
 }

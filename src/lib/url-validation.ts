@@ -1,10 +1,26 @@
 import dns from "node:dns/promises";
 import net from "node:net";
 
+export type ScanErrorCode =
+  | "invalid_url"
+  | "blocked_protocol"
+  | "blocked_credentials"
+  | "blocked_target"
+  | "blocked_ip_literal"
+  | "dns_failure"
+  | "dns_empty"
+  | "blocked_ip_resolved"
+  | "request_timeout"
+  | "connection_failed"
+  | "too_many_redirects";
+
+/** Carries a language-neutral error code; the API layer translates it for the client. */
 export class UnsafeUrlError extends Error {
-  constructor(message: string) {
-    super(message);
+  code: ScanErrorCode;
+  constructor(code: ScanErrorCode) {
+    super(code);
     this.name = "UnsafeUrlError";
+    this.code = code;
   }
 }
 
@@ -85,23 +101,23 @@ export async function validateTargetUrl(rawUrl: string): Promise<ValidatedUrl> {
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new UnsafeUrlError("Geçersiz URL formatı.");
+    throw new UnsafeUrlError("invalid_url");
   }
 
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new UnsafeUrlError("Yalnızca http:// veya https:// adresleri taranabilir.");
+    throw new UnsafeUrlError("blocked_protocol");
   }
 
   if (url.username || url.password) {
-    throw new UnsafeUrlError("URL içinde kimlik bilgisi bulunamaz.");
+    throw new UnsafeUrlError("blocked_credentials");
   }
 
   const hostname = url.hostname.toLowerCase();
   if (BLOCKED_HOSTNAMES.has(hostname)) {
-    throw new UnsafeUrlError("Bu hedef taranamaz.");
+    throw new UnsafeUrlError("blocked_target");
   }
   if (hostname.endsWith(".local") || hostname.endsWith(".internal")) {
-    throw new UnsafeUrlError("Bu hedef taranamaz.");
+    throw new UnsafeUrlError("blocked_target");
   }
 
   // If the hostname is already a literal IP, validate it directly.
@@ -109,7 +125,7 @@ export async function validateTargetUrl(rawUrl: string): Promise<ValidatedUrl> {
   if (literalVersion) {
     const literal = hostname.replace(/^\[|\]$/g, "");
     if (isBlockedIp(literal)) {
-      throw new UnsafeUrlError("Bu hedef taranamaz (özel/yerel IP adresi).");
+      throw new UnsafeUrlError("blocked_ip_literal");
     }
     return { url, resolvedIps: [literal] };
   }
@@ -119,16 +135,16 @@ export async function validateTargetUrl(rawUrl: string): Promise<ValidatedUrl> {
     const records = await dns.lookup(hostname, { all: true, verbatim: true });
     addresses = records.map((r) => r.address);
   } catch {
-    throw new UnsafeUrlError("Alan adı çözümlenemedi (DNS hatası).");
+    throw new UnsafeUrlError("dns_failure");
   }
 
   if (addresses.length === 0) {
-    throw new UnsafeUrlError("Alan adı çözümlenemedi.");
+    throw new UnsafeUrlError("dns_empty");
   }
 
   for (const ip of addresses) {
     if (isBlockedIp(ip)) {
-      throw new UnsafeUrlError("Bu hedef taranamaz (özel/yerel IP adresine çözümleniyor).");
+      throw new UnsafeUrlError("blocked_ip_resolved");
     }
   }
 

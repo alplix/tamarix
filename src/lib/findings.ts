@@ -1,17 +1,37 @@
 import type { Finding, ScanChecks } from "./types";
+import type { Locale } from "./i18n/locales";
+import { t, type MessageKey } from "./i18n/translate";
 
-const HEADER_RECOMMENDATIONS: Record<string, string> = {
-  "Content-Security-Policy": "Uygulamanıza özel, gereksiz joker karakter (*) ve 'unsafe-inline' içermeyen bir Content-Security-Policy tanımlayın.",
-  "Strict-Transport-Security": "HTTPS kullanan production sitelerde 'max-age=31536000; includeSubDomains' gibi uygun bir HSTS politikası yapılandırın.",
-  "X-Content-Type-Options": "Yanıtlara 'X-Content-Type-Options: nosniff' header'ı ekleyin.",
-  "X-Frame-Options": "Yanıtlara 'X-Frame-Options: DENY' veya CSP'de 'frame-ancestors' yönergesi ekleyin.",
-  "Referrer-Policy": "'Referrer-Policy: strict-origin-when-cross-origin' gibi bir politika tanımlayın.",
-  "Permissions-Policy": "Kullanılmayan tarayıcı özelliklerini kısıtlamak için bir Permissions-Policy tanımlayın.",
+export interface TranslatedFinding {
+  category: Finding["category"];
+  severity: Finding["severity"];
+  title: string;
+  description: string;
+  recommendation: string;
+}
+
+export function translateFinding(locale: Locale, finding: Finding): TranslatedFinding {
+  return {
+    category: finding.category,
+    severity: finding.severity,
+    title: t(locale, finding.titleKey, finding.titleParams),
+    description: t(locale, finding.descriptionKey, finding.descriptionParams),
+    recommendation: t(locale, finding.recommendationKey, finding.recommendationParams),
+  };
+}
+
+const HEADER_RECOMMENDATION_KEY: Record<string, MessageKey> = {
+  csp: "header.recommendation.csp",
+  hsts: "header.recommendation.hsts",
+  xcto: "header.recommendation.xcto",
+  xfo: "header.recommendation.xfo",
+  referrer: "header.recommendation.referrer",
+  permissions: "header.recommendation.permissions",
 };
 
-function severityForHeader(header: string, status: "WARNING" | "FAIL"): Finding["severity"] {
-  const highImpact = ["Content-Security-Policy", "Strict-Transport-Security"];
-  if (highImpact.includes(header)) return status === "FAIL" ? "HIGH" : "MEDIUM";
+function severityForHeader(headerKey: string, status: "WARNING" | "FAIL"): Finding["severity"] {
+  const highImpact = ["csp", "hsts"];
+  if (highImpact.includes(headerKey)) return status === "FAIL" ? "HIGH" : "MEDIUM";
   return status === "FAIL" ? "MEDIUM" : "LOW";
 }
 
@@ -21,27 +41,27 @@ export function buildFindings(checks: ScanChecks): Finding[] {
   // HTTPS
   if (!checks.https.httpsReachable || !checks.https.tlsValid) {
     findings.push({
-      category: "HTTPS",
+      category: "https",
       severity: "HIGH",
-      title: "HTTPS kullanılamıyor",
-      description: "Site HTTPS üzerinden güvenilir şekilde erişilemez durumda ya da TLS bağlantısı kurulamadı.",
-      recommendation: "Geçerli bir TLS sertifikası ile HTTPS'i etkinleştirin ve sertifikanın güncel olduğundan emin olun.",
+      titleKey: "finding.https.fail.title",
+      descriptionKey: "finding.https.fail.description",
+      recommendationKey: "finding.https.fail.recommendation",
     });
   } else if (!checks.https.httpRedirectsToHttps) {
     findings.push({
-      category: "HTTPS",
+      category: "https",
       severity: "MEDIUM",
-      title: "HTTP, HTTPS'e yönlendirilmiyor",
-      description: "Site HTTPS destekliyor ancak düz HTTP istekleri otomatik olarak HTTPS'e yönlendirilmiyor.",
-      recommendation: "Sunucu veya yük dengeleyici seviyesinde tüm HTTP isteklerini HTTPS'e yönlendiren bir kural ekleyin.",
+      titleKey: "finding.https.noRedirect.title",
+      descriptionKey: "finding.https.noRedirect.description",
+      recommendationKey: "finding.https.noRedirect.recommendation",
     });
   } else {
     findings.push({
-      category: "HTTPS",
+      category: "https",
       severity: "PASS",
-      title: "HTTPS doğru yapılandırılmış",
-      description: "Site HTTPS üzerinden erişilebilir ve HTTP istekleri HTTPS'e yönlendiriliyor.",
-      recommendation: "Mevcut yapılandırmayı koruyun.",
+      titleKey: "finding.https.pass.title",
+      descriptionKey: "finding.https.pass.description",
+      recommendationKey: "finding.https.pass.recommendation",
     });
   }
 
@@ -49,49 +69,53 @@ export function buildFindings(checks: ScanChecks): Finding[] {
   for (const check of checks.headers.checks) {
     if (check.status === "PASS") {
       findings.push({
-        category: "Security Headers",
+        category: "headers",
         severity: "PASS",
-        title: `${check.header}`,
-        description: "Header mevcut ve doğru yapılandırılmış.",
-        recommendation: "Mevcut yapılandırmayı koruyun.",
+        titleKey: "finding.header.pass.title",
+        titleParams: { header: check.header },
+        descriptionKey: "finding.header.pass.description",
+        recommendationKey: "finding.header.pass.recommendation",
       });
       continue;
     }
     findings.push({
-      category: "Security Headers",
-      severity: severityForHeader(check.header, check.status),
-      title: check.value ? `Zayıf ${check.header} yapılandırması` : `Eksik ${check.header}`,
-      description: check.reason,
-      recommendation: HEADER_RECOMMENDATIONS[check.header] ?? "Bu header için güvenli bir değer yapılandırın.",
+      category: "headers",
+      severity: severityForHeader(check.headerKey, check.status),
+      titleKey: check.value ? "finding.header.weak.title" : "finding.header.missing.title",
+      titleParams: { header: check.header },
+      descriptionKey: `header.reason.${check.reasonCode}` as MessageKey,
+      recommendationKey: HEADER_RECOMMENDATION_KEY[check.headerKey],
     });
   }
 
   // Cookies
   if (checks.cookies.cookieCount === 0) {
     findings.push({
-      category: "Cookies",
+      category: "cookies",
       severity: "PASS",
-      title: "Cookie tespit edilmedi",
-      description: "Yanıtta herhangi bir Set-Cookie header'ı bulunamadı.",
-      recommendation: "Uygulanabilir bir öneri yok.",
+      titleKey: "finding.cookie.none.title",
+      descriptionKey: "finding.cookie.none.description",
+      recommendationKey: "finding.header.pass.recommendation",
     });
   } else {
     for (const cookie of checks.cookies.cookies) {
       if (cookie.issues.length === 0) {
         findings.push({
-          category: "Cookies",
+          category: "cookies",
           severity: "PASS",
-          title: `Cookie "${cookie.name}" güvenli yapılandırılmış`,
-          description: "Secure, HttpOnly ve SameSite bayrakları doğru şekilde ayarlanmış.",
-          recommendation: "Mevcut yapılandırmayı koruyun.",
+          titleKey: "finding.cookie.pass.title",
+          titleParams: { name: cookie.name },
+          descriptionKey: "finding.cookie.pass.description",
+          recommendationKey: "finding.header.pass.recommendation",
         });
       } else {
         findings.push({
-          category: "Cookies",
+          category: "cookies",
           severity: !cookie.secure || !cookie.httpOnly ? "MEDIUM" : "LOW",
-          title: `Cookie "${cookie.name}" eksik güvenlik bayrakları içeriyor`,
-          description: cookie.issues.join(" "),
-          recommendation: "Cookie'yi Secure, HttpOnly ve uygun bir SameSite değeri ile ayarlayın.",
+          titleKey: "finding.cookie.issue.title",
+          titleParams: { name: cookie.name },
+          descriptionKey: `cookie.issue.${cookie.issues[0]}` as MessageKey,
+          recommendationKey: "finding.cookie.issue.recommendation",
         });
       }
     }
@@ -100,20 +124,21 @@ export function buildFindings(checks: ScanChecks): Finding[] {
   // Information disclosure
   if (checks.infoDisclosure.issues.length === 0) {
     findings.push({
-      category: "Information Disclosure",
+      category: "infoDisclosure",
       severity: "PASS",
-      title: "Açık teknik bilgi tespit edilmedi",
-      description: "Response header'larında veya HTML'de belirgin bir sürüm/hata bilgisi bulunamadı.",
-      recommendation: "Uygulanabilir bir öneri yok.",
+      titleKey: "finding.info.none.title",
+      descriptionKey: "finding.info.none.description",
+      recommendationKey: "finding.header.pass.recommendation",
     });
   } else {
     for (const issue of checks.infoDisclosure.issues) {
       findings.push({
-        category: "Information Disclosure",
+        category: "infoDisclosure",
         severity: "LOW",
-        title: "Hassas teknik bilgi açığa çıkıyor",
-        description: issue,
-        recommendation: "Sunucu/framework header'larını gizleyin ve hata mesajlarının/debug bilgisinin production'da görünmesini engelleyin.",
+        titleKey: "finding.info.issue.title",
+        descriptionKey: `info.issue.${issue.code}` as MessageKey,
+        descriptionParams: issue.value ? { value: issue.value } : undefined,
+        recommendationKey: "finding.info.issue.recommendation",
       });
     }
   }
@@ -121,30 +146,31 @@ export function buildFindings(checks: ScanChecks): Finding[] {
   // Exposure
   if (!checks.exposure.securityTxt.found) {
     findings.push({
-      category: "Exposure",
+      category: "exposure",
       severity: "LOW",
-      title: "security.txt bulunamadı",
-      description: "/.well-known/security.txt dosyası mevcut değil, bu da güvenlik araştırmacılarının açık bildirmesini zorlaştırır.",
-      recommendation: "RFC 9116 formatında bir security.txt dosyası yayınlayın.",
+      titleKey: "finding.exposure.missing.title",
+      descriptionKey: "finding.exposure.missing.description",
+      recommendationKey: "finding.exposure.missing.recommendation",
     });
   } else {
     findings.push({
-      category: "Exposure",
+      category: "exposure",
       severity: "PASS",
-      title: "security.txt mevcut",
-      description: "Site bir security.txt dosyası yayınlıyor.",
-      recommendation: "Mevcut yapılandırmayı koruyun.",
+      titleKey: "finding.exposure.found.title",
+      descriptionKey: "finding.exposure.found.description",
+      recommendationKey: "finding.exposure.found.recommendation",
     });
   }
 
   // HTTP methods
-  for (const issue of checks.httpMethods.issues) {
+  for (const method of checks.httpMethods.exposedDangerous) {
     findings.push({
-      category: "HTTP Methods",
+      category: "httpMethods",
       severity: "LOW",
-      title: "Potansiyel olarak tehlikeli HTTP metodu açık",
-      description: issue,
-      recommendation: "Sunucu yapılandırmasında kullanılmayan HTTP metodlarını devre dışı bırakın.",
+      titleKey: "finding.httpMethods.issue.title",
+      descriptionKey: "finding.httpMethods.issue.description",
+      descriptionParams: { method },
+      recommendationKey: "finding.httpMethods.issue.recommendation",
     });
   }
 

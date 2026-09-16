@@ -5,12 +5,12 @@ import type { ScanChecks } from "../src/lib/types";
 function buildChecks(overrides: Partial<Record<keyof ScanChecks, "PASS" | "WARNING" | "FAIL">> = {}): ScanChecks {
   const status = (key: keyof ScanChecks) => overrides[key] ?? "PASS";
   return {
-    https: { status: status("https"), httpsReachable: true, httpRedirectsToHttps: true, tlsValid: true, finalUrl: null, details: [] },
+    https: { status: status("https"), httpsReachable: true, httpRedirectsToHttps: true, tlsValid: true, finalUrl: null },
     headers: { status: status("headers"), checks: [] },
     cookies: { status: status("cookies"), cookies: [], cookieCount: 0 },
     infoDisclosure: { status: status("infoDisclosure"), serverHeader: null, poweredByHeader: null, generatorMeta: null, issues: [] },
     exposure: { status: status("exposure"), robotsTxt: { found: false, url: "" }, sitemapXml: { found: false, url: "" }, securityTxt: { found: false, url: "" } },
-    httpMethods: { status: status("httpMethods"), allowedMethods: [], issues: [] },
+    httpMethods: { status: status("httpMethods"), allowedMethods: [], exposedDangerous: [] },
   };
 }
 

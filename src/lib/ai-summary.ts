@@ -1,5 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiSummary, Finding, ScoreResult } from "./types";
+import type { Locale } from "./i18n/locales";
+import { LOCALES } from "./i18n/locales";
+import { translateFinding } from "./findings";
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 
@@ -8,39 +11,41 @@ export interface AiSummaryOutcome {
   error: string | null;
 }
 
-/** Builds a compact, already-derived summary to send to Claude — never raw HTML or full headers. */
-function buildPrompt(url: string, score: ScoreResult, findings: Finding[]): string {
-  const nonPassFindings = findings.filter((f) => f.severity !== "PASS");
-  const compact = nonPassFindings.map((f) => ({
-    category: f.category,
-    severity: f.severity,
-    title: f.title,
-    description: f.description,
-  }));
+function languageName(locale: Locale): string {
+  return LOCALES.find((l) => l.code === locale)?.name ?? "English";
+}
 
-  return `Aşağıda bir web sitesi için pasif güvenlik taraması sonucu elde edilmiş, ÖNCEDEN TOPLANMIŞ bulgular var. Sen yalnızca bu verileri yorumlayacaksın; siteye herhangi bir istek göndermeyeceksin.
+/** Builds a compact, already-derived, already-localized summary to send to Claude — never raw HTML or full headers. */
+function buildPrompt(locale: Locale, url: string, score: ScoreResult, findings: Finding[]): string {
+  const nonPassFindings = findings.filter((f) => f.severity !== "PASS");
+  const compact = nonPassFindings.map((f) => {
+    const translated = translateFinding(locale, f);
+    return { category: translated.category, severity: translated.severity, title: translated.title, description: translated.description };
+  });
+
+  return `Below is a set of ALREADY-COLLECTED passive security scan findings for a website. You will only interpret this data — you will not send any request to the site yourself.
 
 Site: ${url}
-Güvenlik skoru: ${score.score}/100
+Security score: ${score.score}/100
 
-Bulgular (JSON):
+Findings (JSON):
 ${JSON.stringify(compact, null, 2)}
 
-Görev: Bu bulgular için SADECE aşağıdaki JSON şemasına uyan bir yanıt üret, başka hiçbir metin ekleme:
+Task: Produce a response that matches ONLY the following JSON schema, with no other text:
 
 {
-  "overview": "2-3 cümlelik genel değerlendirme (Türkçe)",
+  "overview": "a 2-3 sentence overall assessment",
   "findingExplanations": [
     {
-      "title": "bulgunun başlığı (yukarıdaki title ile eşleşmeli)",
-      "explanation": "kısa açıklama",
-      "whyItMatters": "neden önemli olduğu",
-      "recommendation": "önerilen çözüm"
+      "title": "the finding's title (must match the title above)",
+      "explanation": "a short explanation",
+      "whyItMatters": "why it matters",
+      "recommendation": "the recommended fix"
     }
   ]
 }
 
-findingExplanations dizisinde yukarıdaki her bulgu için tam olarak bir giriş olmalı, aynı sırada. Yanıtın SADECE geçerli JSON olmalı, markdown code fence kullanma.`;
+findingExplanations must contain exactly one entry per finding above, in the same order. Write ALL text values (overview, title, explanation, whyItMatters, recommendation) in ${languageName(locale)}. Respond with ONLY valid JSON, no markdown code fences.`;
 }
 
 function isValidAiSummary(value: unknown): value is AiSummary {
@@ -67,10 +72,15 @@ function extractJson(text: string): unknown {
   return JSON.parse(candidate);
 }
 
-export async function generateAiSummary(url: string, score: ScoreResult, findings: Finding[]): Promise<AiSummaryOutcome> {
+export async function generateAiSummary(
+  url: string,
+  score: ScoreResult,
+  findings: Finding[],
+  locale: Locale
+): Promise<AiSummaryOutcome> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return { summary: null, error: "ANTHROPIC_API_KEY yapılandırılmamış." };
+    return { summary: null, error: "ANTHROPIC_API_KEY is not configured." };
   }
 
   const client = new Anthropic({ apiKey });
@@ -79,28 +89,28 @@ export async function generateAiSummary(url: string, score: ScoreResult, finding
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 2048,
-      messages: [{ role: "user", content: buildPrompt(url, score, findings) }],
+      messages: [{ role: "user", content: buildPrompt(locale, url, score, findings) }],
     });
 
     const textBlock = response.content.find((block) => block.type === "text");
     if (!textBlock || textBlock.type !== "text") {
-      return { summary: null, error: "AI yanıtında metin bulunamadı." };
+      return { summary: null, error: "No text found in the AI response." };
     }
 
     let parsed: unknown;
     try {
       parsed = extractJson(textBlock.text);
     } catch {
-      return { summary: null, error: "AI yanıtı geçerli JSON değil." };
+      return { summary: null, error: "The AI response was not valid JSON." };
     }
 
     if (!isValidAiSummary(parsed)) {
-      return { summary: null, error: "AI yanıtı beklenen şemaya uymuyor." };
+      return { summary: null, error: "The AI response did not match the expected schema." };
     }
 
     return { summary: parsed, error: null };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "bilinmeyen hata";
-    return { summary: null, error: `AI isteği başarısız oldu: ${message}` };
+    const message = err instanceof Error ? err.message : "unknown error";
+    return { summary: null, error: `The AI request failed: ${message}` };
   }
 }

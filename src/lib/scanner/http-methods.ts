@@ -16,13 +16,9 @@ export async function checkHttpMethods(targetUrl: URL): Promise<HttpMethodsCheck
       : [];
 
     const exposedDangerous = allowedMethods.filter((m) => DANGEROUS_METHODS.includes(m));
-    const issues = exposedDangerous.map(
-      (m) => `Sunucu ${m} metoduna izin verdiğini bildiriyor.`
-    );
-
     const status = exposedDangerous.length > 0 ? "WARNING" : "PASS";
-    return { status, allowedMethods, issues };
+    return { status, allowedMethods, exposedDangerous };
   } catch {
-    return { status: "PASS", allowedMethods: [], issues: [] };
+    return { status: "PASS", allowedMethods: [], exposedDangerous: [] };
   }
 }
