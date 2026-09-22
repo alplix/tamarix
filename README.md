@@ -4,7 +4,7 @@
 
 Tamarix is a web application that scans a website for common security and configuration issues using **safe, passive** checks only, and turns the results into a clear, readable report.
 
-The user enters a URL (`https://example.com`), Tamarix sends harmless HTTP requests to the site, scores the results against fixed weights, and uses the Claude API **only to explain the results in plain language** — never to attack the target.
+The user enters a URL (`https://example.com`), Tamarix sends harmless HTTP requests to the site, scores the results against fixed weights, and uses Tilvar (a self-hosted translation/chat model) **only to explain the results in plain language** — never to attack the target.
 
 > **This tool is NOT a penetration testing / attack tool.** It never performs brute force, exploit execution, SQL injection/XSS attempts, DDoS, port/directory scanning, or credential guessing. It only performs safe, passive, publicly-available checks. See [Security Boundaries](#security-boundaries) for details.
 
@@ -47,7 +47,7 @@ Each category earns its full weight on PASS, half on WARNING, and zero on FAIL. 
 - **Next.js 16** (App Router) + **TypeScript**
 - **Tailwind CSS v4**
 - **PostgreSQL** + **Prisma**
-- **Claude API** (`@anthropic-ai/sdk`) — used only to summarize already-collected results
+- **Tilvar** (self-hosted translation/chat model, `tilvar.athena.org.tr`) — used only to summarize already-collected results
 - **Vitest** — unit tests
 
 ## Setup
@@ -56,7 +56,7 @@ Each category earns its full weight on PASS, half on WARNING, and zero on FAIL. 
 
 - Node.js 20+
 - A PostgreSQL database (local or hosted)
-- A Claude API key
+- A Tilvar API key
 
 ```bash
 npm install
@@ -73,8 +73,8 @@ cp .env.example .env
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string (`postgresql://user:pass@host:5432/db?schema=public`) |
-| `ANTHROPIC_API_KEY` | Claude API key ([console.anthropic.com](https://console.anthropic.com/)) |
-| `ANTHROPIC_MODEL` | (optional) model to use, defaults to `claude-sonnet-5` |
+| `TAMARIX_TILVAR_API_KEY` | Tilvar API key (`tilvar.athena.org.tr`) |
+| `TAMARIX_TILVAR_API_MAX_CHARS` | (optional) known Tilvar request-size limit, defaults to `8000` |
 
 ### PostgreSQL Setup
 
@@ -90,10 +90,10 @@ Then apply the schema to the database:
 npm run db:migrate
 ```
 
-### Claude API Setup
+### Tilvar API Setup
 
-1. Create an API key at [console.anthropic.com](https://console.anthropic.com/).
-2. Paste it into `ANTHROPIC_API_KEY` in your `.env` file.
+1. Get a Tilvar API key for the Athena account running this deployment.
+2. Paste it into `TAMARIX_TILVAR_API_KEY` in your `.env` file.
 3. The app still works without an API key — scans still run and produce results, but the AI summary is replaced with an "AI summary could not be generated" message instead of the app crashing.
 
 ## Development
@@ -135,13 +135,13 @@ src/
     scanner/                  → One passive module per check category, emitting language-neutral codes
     scoring.ts                 → Fixed-weight, deterministic score calculation
     findings.ts                 → Turns raw check results into language-neutral findings (message key + params)
-    ai-summary.ts                → Claude API call + JSON schema validation, locale-aware
+    ai-summary.ts                → Tilvar API call + JSON schema validation, locale-aware
     scan-service.ts               → Caching, scan orchestration, database persistence
     i18n/                          → Locale list, message dictionaries, translation helper, locale detection
 prisma/schema.prisma            → Scan and Finding models
 ```
 
-Flow: `URL submitted → SSRF validation → cache check → passive HTTP checks → score calculation → language-neutral finding generation → (on first view per language) AI summary via Claude → persisted to the database → dashboard, rendered in the viewer's language`.
+Flow: `URL submitted → SSRF validation → cache check → passive HTTP checks → score calculation → language-neutral finding generation → (on first view per language) AI summary via Tilvar → persisted to the database → dashboard, rendered in the viewer's language`.
 
 Scans themselves are **language-independent** (checks, score and findings are stored as codes/keys, not prose), so the same scan is reused for every viewer regardless of language — only the AI summary is generated (and cached) once per URL **and** language, keeping AI usage to a minimum.
 

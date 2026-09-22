@@ -1,21 +1,30 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { AiSummary, Finding, ScoreResult } from "./types";
 import type { Locale } from "./i18n/locales";
 import { LOCALES } from "./i18n/locales";
 import { translateFinding } from "./findings";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
+const TILVAR_API_URL = "https://tilvar.athena.org.tr/api/chat";
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export interface AiSummaryOutcome {
   summary: AiSummary | null;
   error: string | null;
 }
 
+interface TilvarChatResponse {
+  reply: string;
+  kind: string;
+}
+
+interface TilvarErrorBody {
+  detail?: string;
+}
+
 function languageName(locale: Locale): string {
   return LOCALES.find((l) => l.code === locale)?.name ?? "English";
 }
 
-/** Builds a compact, already-derived, already-localized summary to send to Claude — never raw HTML or full headers. */
+/** Builds a compact, already-derived, already-localized summary to send to Tilvar — never raw HTML or full headers. */
 function buildPrompt(locale: Locale, url: string, score: ScoreResult, findings: Finding[]): string {
   const nonPassFindings = findings.filter((f) => f.severity !== "PASS");
   const compact = nonPassFindings.map((f) => {
@@ -23,6 +32,10 @@ function buildPrompt(locale: Locale, url: string, score: ScoreResult, findings: 
     return { category: translated.category, severity: translated.severity, title: translated.title, description: translated.description };
   });
 
+  // Tilvar's /api/chat has no forced-JSON-schema mode, so the schema is spelled out AND shown as a worked
+  // example (illustrative values, not to be reused) -- this matters much more here than it did for a
+  // schema-following model, and the "no findings -> empty array" line heads off a common failure mode where a
+  // clean scan (all PASS, so `compact` is []) gets an invented finding anyway.
   return `Below is a set of ALREADY-COLLECTED passive security scan findings for a website. You will only interpret this data — you will not send any request to the site yourself.
 
 Site: ${url}
@@ -31,7 +44,7 @@ Security score: ${score.score}/100
 Findings (JSON):
 ${JSON.stringify(compact, null, 2)}
 
-Task: Produce a response that matches ONLY the following JSON schema, with no other text:
+Task: Produce a response that matches ONLY the following JSON schema, with no other text, no markdown code fences, and no explanation before or after it:
 
 {
   "overview": "a 2-3 sentence overall assessment",
@@ -45,7 +58,10 @@ Task: Produce a response that matches ONLY the following JSON schema, with no ot
   ]
 }
 
-findingExplanations must contain exactly one entry per finding above, in the same order. Write ALL text values (overview, title, explanation, whyItMatters, recommendation) in ${languageName(locale)}. Respond with ONLY valid JSON, no markdown code fences.`;
+Worked example of the exact shape expected (values illustrative only, do not reuse them):
+{"overview":"This site has one issue that needs attention.","findingExplanations":[{"title":"HTTPS is not available","explanation":"The site can be reached over plain HTTP.","whyItMatters":"Traffic can be read or altered in transit.","recommendation":"Redirect all HTTP traffic to HTTPS and enable HSTS."}]}
+
+findingExplanations must contain exactly one entry per finding above, in the same order — if the findings list above is empty, findingExplanations must be an empty array []. Write ALL text values (overview, title, explanation, whyItMatters, recommendation) in ${languageName(locale)}. Respond with ONLY valid JSON, no markdown code fences.`;
 }
 
 function isValidAiSummary(value: unknown): value is AiSummary {
@@ -72,45 +88,92 @@ function extractJson(text: string): unknown {
   return JSON.parse(candidate);
 }
 
+async function callTilvar(content: string, apiKey: string): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(TILVAR_API_URL, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        messages: [{ role: "user", content }],
+        web: false,
+        think: false,
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function generateAiSummary(
   url: string,
   score: ScoreResult,
   findings: Finding[],
   locale: Locale
 ): Promise<AiSummaryOutcome> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.TAMARIX_TILVAR_API_KEY;
   if (!apiKey) {
-    return { summary: null, error: "ANTHROPIC_API_KEY is not configured." };
+    return { summary: null, error: "TAMARIX_TILVAR_API_KEY is not configured." };
   }
 
-  const client = new Anthropic({ apiKey });
+  const content = buildPrompt(locale, url, score, findings);
 
+  let response: Response;
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2048,
-      messages: [{ role: "user", content: buildPrompt(locale, url, score, findings) }],
-    });
+    response = await callTilvar(content, apiKey);
 
-    const textBlock = response.content.find((block) => block.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      return { summary: null, error: "No text found in the AI response." };
+    if (response.status === 429) {
+      const retryAfterSeconds = Number(response.headers.get("Retry-After"));
+      const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      response = await callTilvar(content, apiKey);
     }
-
-    let parsed: unknown;
-    try {
-      parsed = extractJson(textBlock.text);
-    } catch {
-      return { summary: null, error: "The AI response was not valid JSON." };
-    }
-
-    if (!isValidAiSummary(parsed)) {
-      return { summary: null, error: "The AI response did not match the expected schema." };
-    }
-
-    return { summary: parsed, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown error";
     return { summary: null, error: `The AI request failed: ${message}` };
   }
+
+  if (!response.ok) {
+    let detail: string | undefined;
+    try {
+      const errorBody = (await response.json()) as TilvarErrorBody;
+      detail = errorBody.detail;
+    } catch {
+      // Response body wasn't JSON (or was empty) — fall back to a status-only message.
+    }
+    return {
+      summary: null,
+      error: detail ? `Tilvar API returned ${response.status}: ${detail}` : `Tilvar API returned ${response.status}`,
+    };
+  }
+
+  let data: TilvarChatResponse;
+  try {
+    data = (await response.json()) as TilvarChatResponse;
+  } catch {
+    return { summary: null, error: "Tilvar API returned a non-JSON response." };
+  }
+
+  if (!data.reply) {
+    return { summary: null, error: "Tilvar API returned no reply content." };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = extractJson(data.reply);
+  } catch {
+    return { summary: null, error: "The AI response was not valid JSON." };
+  }
+
+  if (!isValidAiSummary(parsed)) {
+    return { summary: null, error: "The AI response did not match the expected schema." };
+  }
+
+  return { summary: parsed, error: null };
 }

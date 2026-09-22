@@ -14,7 +14,6 @@
     "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.68.0",
     "@prisma/client": "^6.16.3",
     "next": "16.3.5",
     "react": "19.2.8",
